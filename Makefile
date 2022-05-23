@@ -21,6 +21,9 @@ test: $(TESTS)
 	for i in $^; do echo $$i; ./$$i || exit 1; echo; done
 	test/driver.sh ./chibicc
 
+test/%.png: test/%.exe 
+	dot -Tpng -o $@ debug.txt
+
 test-all: test test-stage2
 
 # Stage 2

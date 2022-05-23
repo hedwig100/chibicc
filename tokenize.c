@@ -500,6 +500,7 @@ Token *tokenize(File *file) {
   while (*p) {
     // Skip line comments.
     if (startswith(p, "//")) {
+      fprintf(stderr,"COMMENT \n");
       p += 2;
       while (*p != '\n')
         p++;
@@ -509,6 +510,7 @@ Token *tokenize(File *file) {
 
     // Skip block comments.
     if (startswith(p, "/*")) {
+      fprintf(stderr,"COMMENTS \n");
       char *q = strstr(p + 2, "*/");
       if (!q)
         error_at(p, "unclosed block comment");
@@ -519,6 +521,7 @@ Token *tokenize(File *file) {
 
     // Skip newline.
     if (*p == '\n') {
+      fprintf(stderr,"\n");
       p++;
       at_bol = true;
       has_space = false;
@@ -534,6 +537,7 @@ Token *tokenize(File *file) {
 
     // Numeric literal
     if (isdigit(*p) || (*p == '.' && isdigit(p[1]))) {
+      fprintf(stderr,"NUMERIC ");
       char *q = p++;
       for (;;) {
         if (p[0] && p[1] && strchr("eEpP", p[0]) && strchr("+-", p[1]))
@@ -549,6 +553,7 @@ Token *tokenize(File *file) {
 
     // String literal
     if (*p == '"') {
+      fprintf(stderr,"STR ");
       cur = cur->next = read_string_literal(p, p);
       p += cur->len;
       continue;
@@ -556,6 +561,7 @@ Token *tokenize(File *file) {
 
     // UTF-8 string literal
     if (startswith(p, "u8\"")) {
+      fprintf(stderr,"UTF8 ");
       cur = cur->next = read_string_literal(p, p + 2);
       p += cur->len;
       continue;
@@ -563,6 +569,7 @@ Token *tokenize(File *file) {
 
     // UTF-16 string literal
     if (startswith(p, "u\"")) {
+      fprintf(stderr,"UTF16 ");
       cur = cur->next = read_utf16_string_literal(p, p + 1);
       p += cur->len;
       continue;
@@ -570,6 +577,7 @@ Token *tokenize(File *file) {
 
     // Wide string literal
     if (startswith(p, "L\"")) {
+      fprintf(stderr,"WIDESTR ");
       cur = cur->next = read_utf32_string_literal(p, p + 1, ty_int);
       p += cur->len;
       continue;
@@ -577,6 +585,7 @@ Token *tokenize(File *file) {
 
     // UTF-32 string literal
     if (startswith(p, "U\"")) {
+      fprintf(stderr,"UTF32 ");
       cur = cur->next = read_utf32_string_literal(p, p + 1, ty_uint);
       p += cur->len;
       continue;
@@ -584,6 +593,7 @@ Token *tokenize(File *file) {
 
     // Character literal
     if (*p == '\'') {
+      fprintf(stderr,"CHAR ");
       cur = cur->next = read_char_literal(p, p, ty_int);
       cur->val = (char)cur->val;
       p += cur->len;
@@ -592,6 +602,7 @@ Token *tokenize(File *file) {
 
     // UTF-16 character literal
     if (startswith(p, "u'")) {
+      fprintf(stderr,"UTF16CHAR ");
       cur = cur->next = read_char_literal(p, p + 1, ty_ushort);
       cur->val &= 0xffff;
       p += cur->len;
@@ -600,6 +611,7 @@ Token *tokenize(File *file) {
 
     // Wide character literal
     if (startswith(p, "L'")) {
+      fprintf(stderr,"WIDECHAR ");
       cur = cur->next = read_char_literal(p, p + 1, ty_int);
       p += cur->len;
       continue;
@@ -607,6 +619,7 @@ Token *tokenize(File *file) {
 
     // UTF-32 character literal
     if (startswith(p, "U'")) {
+      fprintf(stderr,"UTF32CHAR ");
       cur = cur->next = read_char_literal(p, p + 1, ty_uint);
       p += cur->len;
       continue;
@@ -615,6 +628,7 @@ Token *tokenize(File *file) {
     // Identifier or keyword
     int ident_len = read_ident(p);
     if (ident_len) {
+      fprintf(stderr,"IDENT ");
       cur = cur->next = new_token(TK_IDENT, p, p + ident_len);
       p += cur->len;
       continue;
@@ -623,6 +637,7 @@ Token *tokenize(File *file) {
     // Punctuators
     int punct_len = read_punct(p);
     if (punct_len) {
+      fprintf(stderr,"PUNCT ");
       cur = cur->next = new_token(TK_PUNCT, p, p + punct_len);
       p += cur->len;
       continue;
@@ -633,6 +648,7 @@ Token *tokenize(File *file) {
 
   cur = cur->next = new_token(TK_EOF, p, p);
   add_line_numbers(head.next);
+  fprintf(stderr,"\n");
   return head.next;
 }
 
@@ -800,6 +816,5 @@ Token *tokenize_file(char *path) {
   input_files[file_no] = file;
   input_files[file_no + 1] = NULL;
   file_no++;
-
   return tokenize(file);
 }

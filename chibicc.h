@@ -288,6 +288,8 @@ struct Node {
   // Numeric literal
   int64_t val;
   long double fval;
+
+  int unique_number;
 };
 
 Node *new_cast(Node *expr, Type *ty);

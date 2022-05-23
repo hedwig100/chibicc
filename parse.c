@@ -18,6 +18,8 @@
 
 #include "chibicc.h"
 
+static FILE *debug_file;
+
 // Scope for local variables, global variables, typedefs
 // or enum constants
 typedef struct {
@@ -189,15 +191,122 @@ static Type *find_tag(Token *tok) {
   return NULL;
 }
 
+char *nodekind2str(NodeKind kind) {
+  switch (kind) {
+    case ND_NULL_EXPR:
+      return "NULL_EXPR";
+    case ND_ADD:
+      return "ADD";
+    case ND_SUB:
+      return "SUB";
+    case ND_MUL:      // *
+      return "MUL";
+    case ND_DIV: // /
+      return "DIV";
+    case ND_NEG:       // unary -
+      return "NEG";
+    case ND_MOD:       // %
+      return "MOD";
+    case ND_BITAND:   // &
+      return "BITAND";
+    case ND_BITOR:    // | 
+      return "BITOR";
+    case ND_BITXOR:    // ^
+      return "BITXOR";
+    case ND_SHL:       // <<
+      return "SHL";
+    case ND_SHR:       // >>
+      return "SHR";
+    case ND_EQ:       // ==
+      return "EQ";
+    case ND_NE:        // !=
+      return "NE";
+    case ND_LT:       // <
+      return "LT";
+    case ND_LE:        // <=
+      return "LE";
+    case ND_ASSIGN:    // =
+      return "ASSIGN";
+    case ND_COND:
+      return "COND";     // ?:
+    case ND_COMMA:
+      return "COMMA";   // ,
+    case ND_MEMBER:
+      return "MEMBER";  // . (struct member access)
+    case ND_ADDR:
+      return "ADDR"; // unary &
+    case ND_DEREF:
+      return "DEREF";   // unary *
+    case ND_NOT:
+      return "NOT";  // !
+    case ND_BITNOT:
+      return "BITNOT";    // ~
+    case ND_LOGAND:
+      return "LOGAND"; // &&
+    case ND_LOGOR:
+      return "LOGOR";     // ||
+    case ND_RETURN:
+      return "RETURN";  // "return"
+    case ND_IF:
+      return "IF"; // "if"
+    case ND_FOR:
+      return "FOR";     // "for" or "while"
+    case ND_DO:
+      return "DO";    // "do"
+    case ND_SWITCH:
+      return "SWITCH";    // "switch"
+    case ND_CASE:
+      return "CASE"; // "case"
+    case ND_BLOCK:
+      return "BLOCK";   // { ... }
+    case ND_GOTO:
+      return "GOTO";  // "goto"
+    case ND_GOTO_EXPR:
+      return "GOTO_EXPR"; // "goto" labels-as-values
+    case ND_LABEL:
+      return "LABLE";     // Labeled statement
+    case ND_LABEL_VAL:
+      return "LABEL_VAL"; // [GNU] Labels-as-values
+    case ND_FUNCALL:
+      return "FUNCCALL";
+    case ND_EXPR_STMT:
+      return "EXPRSTMR"; // Expression statement
+    case ND_STMT_EXPR:
+      return "STMTEXPR"; // Statement expression
+    case ND_VAR:
+      return "VAR";      // Variable
+    case ND_VLA_PTR:
+      return "VLAPTR";   // VLA designator
+    case ND_NUM:
+      return "NUM"; // Integer
+    case ND_CAST:
+      return "CAST";    // Type cast
+    case ND_MEMZERO:
+      return "MEMZERO";   // Zero-clear a stack variable
+    case ND_ASM:
+      return "ASM"; //"asm"
+    case ND_CAS:
+      return "CAS";     // Atomic compare-and-swap
+    case ND_EXCH:
+      return "EXCH";
+    default:
+      return "UNREACHABLE";    // Atomic e
+  }
+}
+
 static Node *new_node(NodeKind kind, Token *tok) {
+  static int count = 0;
   Node *node = calloc(1, sizeof(Node));
   node->kind = kind;
+  node->unique_number = count++;
   node->tok = tok;
   return node;
 }
 
 static Node *new_binary(NodeKind kind, Node *lhs, Node *rhs, Token *tok) {
   Node *node = new_node(kind, tok);
+  fprintf(debug_file,"%s%d -> %s%d\n",nodekind2str(node->kind),node->unique_number,nodekind2str(rhs->kind),rhs->unique_number);
+  fprintf(debug_file,"%s%d -> %s%d\n",nodekind2str(node->kind),node->unique_number,nodekind2str(lhs->kind),lhs->unique_number);
   node->lhs = lhs;
   node->rhs = rhs;
   return node;
@@ -205,6 +314,7 @@ static Node *new_binary(NodeKind kind, Node *lhs, Node *rhs, Token *tok) {
 
 static Node *new_unary(NodeKind kind, Node *expr, Token *tok) {
   Node *node = new_node(kind, tok);
+  fprintf(debug_file,"%s%d -> %s%d\n",nodekind2str(node->kind),node->unique_number,nodekind2str(expr->kind),expr->unique_number);
   node->lhs = expr;
   return node;
 }
@@ -1566,10 +1676,14 @@ static Node *stmt(Token **rest, Token *tok) {
     Node *node = new_node(ND_IF, tok);
     tok = skip(tok->next, "(");
     node->cond = expr(&tok, tok);
+    fprintf(debug_file,"%s%d -> %s%d\n",nodekind2str(node->kind),node->unique_number,nodekind2str(node->cond->kind),node->cond->unique_number);
     tok = skip(tok, ")");
     node->then = stmt(&tok, tok);
-    if (equal(tok, "else"))
+    fprintf(debug_file,"%s%d -> %s%d\n",nodekind2str(node->kind),node->unique_number,nodekind2str(node->then->kind),node->then->unique_number);
+    if (equal(tok, "else")) {
       node->els = stmt(&tok, tok->next);
+      fprintf(debug_file,"%s%d -> %s%d\n",nodekind2str(node->kind),node->unique_number,nodekind2str(node->els->kind),node->els->unique_number);
+    }
     *rest = tok;
     return node;
   }
@@ -1650,15 +1764,20 @@ static Node *stmt(Token **rest, Token *tok) {
       node->init = expr_stmt(&tok, tok);
     }
 
-    if (!equal(tok, ";"))
+    if (!equal(tok, ";")) {
       node->cond = expr(&tok, tok);
+      fprintf(debug_file,"%s%d -> %s%d\n",nodekind2str(node->kind),node->unique_number,nodekind2str(node->cond->kind),node->cond->unique_number);
+    }
     tok = skip(tok, ";");
 
-    if (!equal(tok, ")"))
+    if (!equal(tok, ")")) {
       node->inc = expr(&tok, tok);
+      fprintf(debug_file,"%s%d -> %s%d\n",nodekind2str(node->kind),node->unique_number,nodekind2str(node->inc->kind),node->inc->unique_number);
+    }
     tok = skip(tok, ")");
 
     node->then = stmt(rest, tok);
+    fprintf(debug_file,"%s%d -> %s%d\n",nodekind2str(node->kind),node->unique_number,nodekind2str(node->then->kind),node->then->unique_number);
 
     leave_scope();
     brk_label = brk;
@@ -1797,6 +1916,7 @@ static Node *compound_stmt(Token **rest, Token *tok) {
   leave_scope();
 
   node->body = head.next;
+    fprintf(debug_file,"%s%d -> %s%d\n",nodekind2str(node->kind),node->unique_number,nodekind2str(node->body->kind),node->body->unique_number);
   *rest = tok->next;
   return node;
 }
@@ -1810,6 +1930,7 @@ static Node *expr_stmt(Token **rest, Token *tok) {
 
   Node *node = new_node(ND_EXPR_STMT, tok);
   node->lhs = expr(&tok, tok);
+  fprintf(debug_file,"%s%d -> %s%d\n",nodekind2str(node->kind),node->unique_number,nodekind2str(node->lhs->kind),node->lhs->unique_number);
   *rest = skip(tok, ";");
   return node;
 }
@@ -3335,6 +3456,12 @@ static void declare_builtin_functions(void) {
 
 // program = (typedef | function-definition | global-variable)*
 Obj *parse(Token *tok) {
+  debug_file = fopen("debug.txt","w");
+  if (debug_file == NULL) {
+    fprintf(stderr,"debug file cannot be opend\n");
+    exit(1);
+  }
+  fprintf(debug_file,"digraph A {\n");
   declare_builtin_functions();
   globals = NULL;
 
@@ -3364,5 +3491,6 @@ Obj *parse(Token *tok) {
 
   // Remove redundant tentative definitions.
   scan_globals();
+  fprintf(debug_file,"}\n");
   return globals;
 }
